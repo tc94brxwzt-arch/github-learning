@@ -1,18 +1,17 @@
 {
-  "name": "github-learning-preview",
+  "name": "base64-tool",
   "version": "1.0.0",
   "private": true,
-  "description": "Local Markdown preview server for the GitHub Learning notes.",
+  "description": "A small Base64 encode/decode tool with a web UI and CLI.",
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node --test",
+    "encode": "node cli.js encode",
+    "decode": "node cli.js decode"
   },
   "engines": {
     "node": ">=18"
-  },
-  "dependencies": {
-    "github-markdown-css": "5.8.1",
-    "marked": "12.0.2"
   }
 }

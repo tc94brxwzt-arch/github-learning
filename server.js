@@ -3,103 +3,88 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { marked } = require("marked");
+const { encode, decode } = require("./lib/base64");
 
-const ROOT = __dirname;
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT) || 3000;
+const PUBLIC_DIR = path.join(__dirname, "public");
 
-const githubCssPath = require.resolve("github-markdown-css/github-markdown.css");
-const GITHUB_CSS = fs.readFileSync(githubCssPath, "utf8");
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+};
 
-marked.setOptions({ gfm: true, breaks: false });
-
-function listMarkdownFiles() {
-  return fs
-    .readdirSync(ROOT, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".md"))
-    .map((entry) => entry.name)
-    .sort();
+function sendJson(res, status, body) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(body));
 }
 
-function htmlPage(title, bodyHtml) {
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${title}</title>
-<style>
-${GITHUB_CSS}
-body { box-sizing: border-box; margin: 0; padding: 2rem; background: #f6f8fa; }
-.markdown-body { max-width: 900px; margin: 0 auto; background: #fff; padding: 2.5rem; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-.nav { max-width: 900px; margin: 0 auto 1rem; font-size: 14px; }
-.nav a { margin-right: 1rem; }
-</style>
-</head>
-<body>
-<div class="nav"><a href="/">\u2190 \u6240\u6709\u6587\u6863</a></div>
-<article class="markdown-body">
-${bodyHtml}
-</article>
-</body>
-</html>`;
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
 }
 
-function renderIndex() {
-  const files = listMarkdownFiles();
-  const items = files
-    .map((name) => `<li><a href="/${encodeURIComponent(name)}">${name}</a></li>`)
-    .join("\n");
-  const body = `<h1>GitHub Learning \u2014 \u6587\u6863\u9884\u89c8</h1>
-<p>\u9009\u62e9\u4e00\u4e2a Markdown \u6587\u4ef6\u67e5\u770b\u6e32\u67d3\u540e\u7684\u6548\u679c\uff1a</p>
-<ul>
-${items || "<li>\u6ca1\u6709\u627e\u5230 Markdown \u6587\u4ef6\u3002</li>"}
-</ul>`;
-  return htmlPage("GitHub Learning \u9884\u89c8", body);
-}
-
-function renderMarkdown(fileName) {
-  const safeName = path.basename(fileName);
-  const fullPath = path.join(ROOT, safeName);
-  if (
-    !safeName.toLowerCase().endsWith(".md") ||
-    !fs.existsSync(fullPath) ||
-    !fs.statSync(fullPath).isFile()
-  ) {
-    return null;
+function serveStatic(urlPath, res) {
+  const relative = urlPath === "/" ? "index.html" : urlPath.replace(/^\//, "");
+  const fullPath = path.normalize(path.join(PUBLIC_DIR, relative));
+  if (!fullPath.startsWith(PUBLIC_DIR) || !fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not Found");
+    return;
   }
-  const source = fs.readFileSync(fullPath, "utf8");
-  return htmlPage(safeName, marked.parse(source));
+  const ext = path.extname(fullPath).toLowerCase();
+  res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
+  fs.createReadStream(fullPath).pipe(res);
 }
 
-const server = http.createServer((req, res) => {
-  const url = decodeURIComponent(req.url.split("?")[0]);
+const server = http.createServer(async (req, res) => {
+  const url = decodeURIComponent((req.url || "/").split("?")[0]);
 
   if (url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({ status: "ok", files: listMarkdownFiles() }));
+    sendJson(res, 200, { status: "ok" });
     return;
   }
 
-  if (url === "/" || url === "/index.html") {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(renderIndex());
+  if (req.method === "POST" && (url === "/api/encode" || url === "/api/decode")) {
+    try {
+      const raw = await readBody(req);
+      let payload;
+      try {
+        payload = raw ? JSON.parse(raw) : {};
+      } catch {
+        sendJson(res, 400, { error: "请求体必须是 JSON" });
+        return;
+      }
+      const text = payload.text;
+      if (typeof text !== "string") {
+        sendJson(res, 400, { error: "缺少 text 字段" });
+        return;
+      }
+      const result = url === "/api/encode" ? encode(text) : decode(text);
+      sendJson(res, 200, { result });
+    } catch (err) {
+      sendJson(res, 400, { error: err.message || "处理失败" });
+    }
     return;
   }
 
-  const page = renderMarkdown(url.replace(/^\//, ""));
-  if (page === null) {
-    res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(htmlPage("404", "<h1>404</h1><p>\u627e\u4e0d\u5230\u8be5\u6587\u6863\u3002</p>"));
+  if (req.method === "GET") {
+    serveStatic(url, res);
     return;
   }
 
-  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-  res.end(page);
+  res.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Method Not Allowed");
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Markdown preview server running at http://${HOST}:${PORT}`);
-  console.log(`Serving ${listMarkdownFiles().length} markdown file(s) from ${ROOT}`);
+  console.log(`Base64 tool running at http://${HOST}:${PORT}`);
 });

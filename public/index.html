@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Base64 小工具</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4d;
+      --text: #e8eef7;
+      --muted: #8b9bb4;
+      --accent: #3d9cf0;
+      --accent-hover: #5cb0f5;
+      --danger: #f07178;
+      --ok: #7fd99a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1b2a44 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 3rem;
+    }
+    h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.75rem;
+      letter-spacing: 0.02em;
+    }
+    .sub {
+      margin: 0 0 1.75rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    }
+    label {
+      display: block;
+      margin-bottom: 0.45rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      padding: 0.85rem 0.95rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #121a26;
+      color: var(--text);
+      font: 0.95rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    textarea:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin: 1rem 0 1.25rem;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      color: #061018;
+      background: var(--accent);
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.secondary:hover { border-color: var(--accent); }
+    .status {
+      min-height: 1.25rem;
+      margin: 0.75rem 0 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Base64 小工具</h1>
+    <p class="sub">把文本编码成 Base64，或把 Base64 还原成原文。支持中文等 UTF-8 字符。</p>
+    <div class="panel">
+      <label for="input">输入</label>
+      <textarea id="input" placeholder="在这里输入要编码或解码的内容"></textarea>
+      <div class="actions">
+        <button type="button" id="encode">编码为 Base64</button>
+        <button type="button" id="decode">解码 Base64</button>
+        <button type="button" class="secondary" id="swap">上下互换</button>
+        <button type="button" class="secondary" id="copy">复制结果</button>
+        <button type="button" class="secondary" id="clear">清空</button>
+      </div>
+      <label for="output">结果</label>
+      <textarea id="output" placeholder="结果会显示在这里" readonly></textarea>
+      <p class="status" id="status"></p>
+    </div>
+  </main>
+  <script>
+    const input = document.getElementById("input");
+    const output = document.getElementById("output");
+    const status = document.getElementById("status");
+
+    function setStatus(message, kind) {
+      status.textContent = message;
+      status.className = "status" + (kind ? " " + kind : "");
+    }
+
+    function toBase64(text) {
+      const bytes = new TextEncoder().encode(text);
+      let binary = "";
+      bytes.forEach((b) => { binary += String.fromCharCode(b); });
+      return btoa(binary);
+    }
+
+    function fromBase64(encoded) {
+      const trimmed = encoded.trim();
+      if (!trimmed) return "";
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(trimmed) || trimmed.length % 4 !== 0) {
+        throw new Error("不是有效的 Base64 字符串");
+      }
+      const binary = atob(trimmed);
+      const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }
+
+    document.getElementById("encode").addEventListener("click", () => {
+      output.value = toBase64(input.value);
+      setStatus("编码完成", "ok");
+    });
+
+    document.getElementById("decode").addEventListener("click", () => {
+      try {
+        output.value = fromBase64(input.value);
+        setStatus("解码完成", "ok");
+      } catch (err) {
+        output.value = "";
+        setStatus(err.message || "解码失败", "error");
+      }
+    });
+
+    document.getElementById("swap").addEventListener("click", () => {
+      const nextInput = output.value;
+      output.value = input.value;
+      input.value = nextInput;
+      setStatus("已互换输入和结果");
+    });
+
+    document.getElementById("copy").addEventListener("click", async () => {
+      if (!output.value) {
+        setStatus("没有可复制的结果", "error");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(output.value);
+        setStatus("结果已复制", "ok");
+      } catch {
+        output.select();
+        document.execCommand("copy");
+        setStatus("结果已复制", "ok");
+      }
+    });
+
+    document.getElementById("clear").addEventListener("click", () => {
+      input.value = "";
+      output.value = "";
+      setStatus("已清空");
+    });
+  </script>
+</body>
+</html>
