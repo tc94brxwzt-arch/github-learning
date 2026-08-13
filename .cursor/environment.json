@@ -1,0 +1,16 @@
+{
+  "name": "GitHub Learning",
+  "install": "npm install",
+  "terminals": [
+    {
+      "name": "markdown-preview",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [
+    {
+      "name": "Markdown preview",
+      "port": 3000
+    }
+  ]
+}
