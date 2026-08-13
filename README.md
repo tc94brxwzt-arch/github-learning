@@ -1,25 +1,39 @@
-# GitHub Learning
+# Base64 小工具
 
-这是我的第一个 GitHub 仓库。
+把文本编码成 Base64，或把 Base64 还原成原文。支持中文等 UTF-8 字符。
 
-## 学习目标
+## 网页版
 
-- 学会创建仓库
-- 学会修改文件
-- 学会提交修改
+```bash
+npm start
+```
 
-## 第二课
+然后打开 http://localhost:3000 ，在页面里输入内容并选择「编码」或「解码」。
 
-我已经学会把 GitHub 仓库克隆到电脑。
+## 命令行
 
+```bash
+node cli.js encode "你好"
+# 5L2g5aW9
 
-## 第四课
+node cli.js decode "5L2g5aW9"
+# 你好
+```
 
-我正在通过分支学习 GitHub 协作流程。
+也可以用管道：
 
+```bash
+echo -n "hello" | node cli.js encode
+```
 
-## 后续学习计划
+## 接口
 
-- 学习使用 Issue 管理任务
-- 学习处理代码冲突
-- 学习使用 GitHub Actions
+- `POST /api/encode` 请求体：`{"text":"你好"}`
+- `POST /api/decode` 请求体：`{"text":"5L2g5aW9"}`
+- `GET /health`
+
+## 测试
+
+```bash
+npm test
+```

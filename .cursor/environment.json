@@ -1,15 +1,15 @@
 {
-  "name": "GitHub Learning",
-  "install": "npm install",
+  "name": "Base64 Tool",
+  "install": "true",
   "terminals": [
     {
-      "name": "markdown-preview",
+      "name": "base64-tool",
       "command": "npm run dev"
     }
   ],
   "ports": [
     {
-      "name": "Markdown preview",
+      "name": "Base64 tool",
       "port": 3000
     }
   ]
